@@ -10,3 +10,5 @@ image_idx = 0
 print('Label:', train_data['y'][image_idx])
 plt.imshow(train_data['X'][:, :, :, image_idx])
 plt.show()
+
+print("wesh")
