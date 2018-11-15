@@ -2,6 +2,7 @@
 from scipy.io import loadmat
 from scipy.spatial import distance 
 from random import randint
+from sklearn.decomposition import PCA
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -9,8 +10,8 @@ import time
 
 def load_data(path):
 	data = loadmat(path)
-	return data
-	#return data['X'], data['y']
+	#return data
+	return data['X'], data['y']
 	#train_data.items()
 
 def displayImage(matrice, index):
@@ -32,43 +33,73 @@ def displayAllImages(img, labels, nrows, ncols):
 def rgb2gray(images):
     return np.expand_dims(np.dot(images, [0.2990, 0.5870, 0.1140]), axis=3)
 
+
+#cette méthode modifie la forme des données 
+#pour être utilisées plus facilement dans le reste du programme
+def simplifyValues(dataX, dataY):
+	newDataX = []
+	newDataY = []
+	for i in range(0, dataX.shape[3]):
+		newDataX.append(dataX[:,:,:,i])
+		newDataY.append(dataY[i])
+	return (np.array(newDataX), np.array(newDataY))
+
+# DMIN
 #NEW
-def classifieurDMIN(data, number):
+#cette méthode renvoit le classifieur d'un jeu de données avec résultat
+#avec un nombre de données passé en paramètre
+def classifieurDMIN(dataX, dataY, number):
 	classes = []
 	finalClasses = []
 	for i in range(0,10):
 		classes.append([])
 	for i in range(0 ,number):
-		ind = data['y'][i][0]
+		ind = dataY[i][0]
 		if(ind == 10):
-			classes[0].append(data['X'][:,:,:,i])
+			classes[0].append(dataX[i])
 		else:
-			classes[ind].append(data['X'][:,:,:,i])
+			classes[ind].append(dataX[i])
 	for i in range(0,10):
-		#print("in class ", i, " values number : ", len(classes[i]))
 		finalClasses.append(np.mean(classes[i], axis=0))
 	return finalClasses
 
+
 # NEW
-def testDMIN(classes, data, number):
-	succes = 0
-	fail = 0
-	for i in range(0, number):
-		bestValue = np.linalg.norm(classes[0]-data['X'][:,:,:,i])
-		bestMatch = 0
-		for c in range(1, 10):
-			if(np.linalg.norm(classes[c]-data['X'][:,:,:,i]) < bestValue):
-				bestMatch = c
-		y = data['y'][i][0]
-		if(y==10):
-			y = 0
-		if(bestMatch == y):
-			#print("succ ", bestMatch , " -> ", y)
-			succes += 1
-		else:
-			#print("fail ", bestMatch , " -> ", y)
-			fail += 1
-	return (succes / (succes+fail) * 100.)  
+#cette méthode calcule pour chaque élément la classe qui a la distance euclidienne minimum
+#elle retourne le pourcentage d'echec de l'échantillon avec le classifieur
+def testDMIN(classes, dataX, dataY, number):
+	if(np.array_equal(dataX[0].shape, classes[0].shape)):
+		succes = 0
+		fail = 0
+		for i in range(0, number):
+			bestValue = np.linalg.norm(classes[0]-dataX[i])
+			bestMatch = 0
+			for c in range(1, 10):
+				temp = np.linalg.norm(classes[c]-dataX[i])
+				if(temp < bestValue):
+					bestValue = temp
+					bestMatch = c
+			y = dataY[i]
+			if(y==10):
+				y = 0
+			if(bestMatch == y):
+				succes += 1
+			else:
+				fail += 1
+		return (fail / (succes+fail) * 100.)  
+	else:
+		print(dataX[0].shape, " != ", classes[0].shape)
+		return 0;
+
+#PCA
+#cette méthode transforme les données en appelant la méthode PCA
+#de la biblitthèque sklearn
+def ACP_transformation(data,number, pca_values=10):
+	dataFlatten = []
+	for i in range(0,number):
+		dataFlatten.append(data[i].flatten())
+	pca = PCA(n_components=pca_values)
+	return pca.fit_transform(dataFlatten)
 
 '''
 1. Nettoyer les données
@@ -87,20 +118,92 @@ idées: Normalising the intensity, global and local contrast normalisation, ZCA 
 '''
 
 #-----------Reading the .MAT files
-
-#X_train, y_train = load_data('train_32x32.mat')
-#X_test, y_test = load_data('test_32x32.mat')
-
 #NEW MAIN
 start_time = time.time()
-train_values = load_data('train_32x32.mat')
-test_values = load_data('test_32x32.mat')
+train_values_X, train_values_y = load_data('train_32x32.mat')
+test_values_X, test_values_y = load_data('test_32x32.mat')
 
-classesForDMIN = classifieurDMIN(train_values,5000)
-print("with 5000 values ", testDMIN(classesForDMIN, test_values,1000), "%")
+train_x_after, train_y_after = simplifyValues(train_values_X, train_values_y)
+sizeTrain = train_x_after.shape[0] - 1
+test_x_after, test_y_after = simplifyValues(test_values_X, test_values_y)
+sizeTest = test_x_after.shape[0] - 1
+del train_values_X, train_values_y, test_values_y, test_values_X
 
-classesForDMIN = classifieurDMIN(train_values,20000)
-print("with 20000 values ", testDMIN(classesForDMIN, test_values,1000), "%")
+
+#test DMIN avec toutes les valeurs des données train et test
+classesDMIN = classifieurDMIN(train_x_after, train_y_after, sizeTrain)
+print("DMIN with ", sizeTest , " values, percentage failed : " , testDMIN(classesDMIN, test_x_after, test_y_after, sizeTest), "%")
+
+
+
+'''
+#tests préprocessing d'Elodie
+#sans pre procc
+classesDMIN = classifieurDMIN(train_x_after, train_y_after, sizeTrain)
+print("DMIN with ", sizeTest , " values, w/o preprocessing, percentage failed : " , testDMIN(classesDMIN, test_x_after, test_y_after, sizeTest), "%")
+#pre procc
+train_x_greyscale = rgb2gray(train_x_after).astype(np.float32)
+test_x_greyscale = rgb2gray(test_x_after).astype(np.float32)
+#avec pre procc
+classesDMIN = classifieurDMIN(train_x_greyscale, train_y_after, sizeTrain)
+print("DMIN with ", sizeTest , " values, w/ preprocessing, percentage failed : " , testDMIN(classesDMIN, test_x_greyscale, test_y_after, sizeTest), "%")
+'''
+
+'''
+# tests avec différentes dimensions de l'ACP : 20 - 15 - 10
+#20
+data_ACP_train = ACP_transformation(train_x_after, 30000, 20)
+classes_for_ACP_DMIN = classifieurDMIN(data_ACP_train, train_y_after, 30000)
+data_ACP_test = ACP_transformation(test_x_after, 10000, 20)
+print("ACP -20- + DMIN with ", 10000, " values, percentage failed : " , testDMIN(classes_for_ACP_DMIN, data_ACP_test, test_y_after, 10000), "%")
+#15
+data_ACP_train = ACP_transformation(train_x_after, 30000, 15)
+classes_for_ACP_DMIN = classifieurDMIN(data_ACP_train, train_y_after, 30000)
+data_ACP_test = ACP_transformation(test_x_after, 10000, 15)
+print("ACP -15- + DMIN with ", 10000, " values, percentage failed : " , testDMIN(classes_for_ACP_DMIN, data_ACP_test, test_y_after, 10000), "%")
+#10
+data_ACP_train = ACP_transformation(train_x_after, 30000, 10)
+classes_for_ACP_DMIN = classifieurDMIN(data_ACP_train, train_y_after, 30000)
+data_ACP_test = ACP_transformation(test_x_after, 10000, 10)
+print("ACP -10- + DMIN with ", 10000, " values, percentage failed : " , testDMIN(classes_for_ACP_DMIN, data_ACP_test, test_y_after, 10000), "%")
+'''
+
+'''
+# tests avec différentes dimensions de l'ACP : 20 - 15 - 10 
+# plus preproccessing d'Elodie
+#20
+data_ACP_train = ACP_transformation(train_x_after, 30000, 20)
+classes_for_ACP_DMIN = classifieurDMIN(data_ACP_train, train_y_after, 30000)
+data_ACP_test = ACP_transformation(test_x_after, 10000, 20)
+print("ACP -20- + DMIN with ", 10000, " values, w/o preproccesing, percentage failed : " , testDMIN(classes_for_ACP_DMIN, data_ACP_test, test_y_after, 10000), "%")
+#15
+data_ACP_train = ACP_transformation(train_x_after, 30000, 15)
+classes_for_ACP_DMIN = classifieurDMIN(data_ACP_train, train_y_after, 30000)
+data_ACP_test = ACP_transformation(test_x_after, 10000, 15)
+print("ACP -15- + DMIN with ", 10000, " values, w/o preproccesing, percentage failed : " , testDMIN(classes_for_ACP_DMIN, data_ACP_test, test_y_after, 10000), "%")
+#10
+data_ACP_train = ACP_transformation(train_x_after, 30000, 10)
+classes_for_ACP_DMIN = classifieurDMIN(data_ACP_train, train_y_after, 30000)
+data_ACP_test = ACP_transformation(test_x_after, 10000, 10)
+print("ACP -10- + DMIN with ", 10000, " values, w/o preproccesing, percentage failed : " , testDMIN(classes_for_ACP_DMIN, data_ACP_test, test_y_after, 10000), "%")
+train_x_greyscale = rgb2gray(train_x_after).astype(np.float32)
+test_x_greyscale = rgb2gray(test_x_after).astype(np.float32)
+#20
+data_ACP_train = ACP_transformation(train_x_greyscale, 30000, 20)
+classes_for_ACP_DMIN = classifieurDMIN(data_ACP_train, train_y_after, 30000)
+data_ACP_test = ACP_transformation(test_x_greyscale, 10000, 20)
+print("ACP -20- + DMIN with ", 10000, " values, w/ preproccesing, percentage failed : " , testDMIN(classes_for_ACP_DMIN, data_ACP_test, test_y_after, 10000), "%")
+#15
+data_ACP_train = ACP_transformation(train_x_greyscale, 30000, 15)
+classes_for_ACP_DMIN = classifieurDMIN(data_ACP_train, train_y_after, 30000)
+data_ACP_test = ACP_transformation(test_x_greyscale, 10000, 15)
+print("ACP -15- + DMIN with ", 10000, " values, w/ preproccesing, percentage failed : " , testDMIN(classes_for_ACP_DMIN, data_ACP_test, test_y_after, 10000), "%")
+#10
+data_ACP_train = ACP_transformation(train_x_greyscale, 30000, 10)
+classes_for_ACP_DMIN = classifieurDMIN(data_ACP_train, train_y_after, 30000)
+data_ACP_test = ACP_transformation(test_x_greyscale, 10000, 10)
+print("ACP -10- + DMIN with ", 10000, " values, w/ preproccesing, percentage failed : " , testDMIN(classes_for_ACP_DMIN, data_ACP_test, test_y_after, 10000), "%")
+'''
 
 print("--- %s seconds ---" % (time.time() - start_time))
 #(width, height, channels, size)
