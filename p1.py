@@ -188,7 +188,7 @@ print("DMIN with ", sizeTest , " values, w/ preprocessing, percentage failed : "
 
 #displayAllImages(filteredTrain, train_y_after, 10, 10)
 #displayAllImages(train_x_greyscale, train_y_after, 10, 10)
-
+#
 '''
 # tests avec différentes dimensions de l'ACP : 20 - 15 - 10
 #20
