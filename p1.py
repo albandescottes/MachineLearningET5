@@ -7,32 +7,66 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 
+#import cv2 as cv
+from skimage.filters import threshold_mean, threshold_otsu, threshold_local, try_all_threshold, threshold_minimum, threshold_niblack
+from skimage import data, filters
 
+#cette méthode charge la matrice du fichier .mat
 def load_data(path):
 	data = loadmat(path)
 	#return data
 	return data['X'], data['y']
 	#train_data.items()
 
+#cette méthode affiche l'image "index" de la matrice
 def displayImage(matrice, index):
 	print('Image n°: ', matrice['y'][index])
 	plt.imshow(matrice['X'][:, 1:, :, index])
 	plt.show()
 
+#cette méthode affiche les nrows, ncols images de la matrice
 def displayAllImages(img, labels, nrows, ncols):
     fig, axes = plt.subplots(nrows, ncols)
     for i, ax in enumerate(axes.flat): 
         if img[i].shape == (32, 32, 3):
-            ax.imshow(img[i])
+            ax.imshow(img[i], cmap="gray")
         else:
-            ax.imshow(img[i,:,:,0])
+            ax.imshow(img[i,:,:,0], cmap="gray")
         ax.set_xticks([]); ax.set_yticks([])
         ax.set_title(labels[i])
     plt.show()    
 
+#cette méthode récupère un tableau des valeurs moyennes
+def meanArray(img, nrows, ncols):
+	meanArray = []
+	for i in range (0, nrows):
+		for j in range (0, ncols):
+			mean = meanValue(img[:, j:, :, i], nrows, ncols)
+			meanArray.append(mean)
+	return meanArray
+
+#cette méthode récupère la valeur moyenne des pixels d'une image
+def meanValue(img, nrows, ncols):
+	return threshold_mean(img[nrows][ncols])
+
+#cette méthode transforme une matrice rgb en noir et blanc
 def rgb2gray(images):
     return np.expand_dims(np.dot(images, [0.2990, 0.5870, 0.1140]), axis=3)
 
+#NEW 
+#Preprocessing
+#cette méthode applique un filtre de preprocessing à une matrice
+def applyFilter(img, size):
+	imgFiltered = [] 
+	for i in range (0, size):
+		mean = threshold_mean(img[i])
+		mid = img[i][16][16]
+
+		hyst = filters.apply_hysteresis_threshold(img[i]-5, mean, mean+5)
+
+		#hyst = filters.apply_hysteresis_threshold(img[i], mid-5, mid+5)
+		imgFiltered.append(hyst)
+	return np.array(imgFiltered)
 
 #cette méthode modifie la forme des données 
 #pour être utilisées plus facilement dans le reste du programme
@@ -43,6 +77,7 @@ def simplifyValues(dataX, dataY):
 		newDataX.append(dataX[:,:,:,i])
 		newDataY.append(dataY[i])
 	return (np.array(newDataX), np.array(newDataY))
+
 
 # DMIN
 #NEW
@@ -131,23 +166,28 @@ del train_values_X, train_values_y, test_values_y, test_values_X
 
 
 #test DMIN avec toutes les valeurs des données train et test
-classesDMIN = classifieurDMIN(train_x_after, train_y_after, sizeTrain)
-print("DMIN with ", sizeTest , " values, percentage failed : " , testDMIN(classesDMIN, test_x_after, test_y_after, sizeTest), "%")
+#classesDMIN = classifieurDMIN(train_x_after, train_y_after, sizeTrain)
+#print("DMIN with ", sizeTest , " values, percentage failed : " , testDMIN(classesDMIN, test_x_after, test_y_after, sizeTest), "%")
 
 
-
-'''
 #tests préprocessing d'Elodie
 #sans pre procc
 classesDMIN = classifieurDMIN(train_x_after, train_y_after, sizeTrain)
 print("DMIN with ", sizeTest , " values, w/o preprocessing, percentage failed : " , testDMIN(classesDMIN, test_x_after, test_y_after, sizeTest), "%")
+
 #pre procc
 train_x_greyscale = rgb2gray(train_x_after).astype(np.float32)
 test_x_greyscale = rgb2gray(test_x_after).astype(np.float32)
+
+filteredTrain = applyFilter(train_x_greyscale, 73257)
+filteredTest = applyFilter(test_x_greyscale, 26032)
+
 #avec pre procc
-classesDMIN = classifieurDMIN(train_x_greyscale, train_y_after, sizeTrain)
-print("DMIN with ", sizeTest , " values, w/ preprocessing, percentage failed : " , testDMIN(classesDMIN, test_x_greyscale, test_y_after, sizeTest), "%")
-'''
+classesDMIN = classifieurDMIN(filteredTrain, train_y_after, sizeTrain)
+print("DMIN with ", sizeTest , " values, w/ preprocessing, percentage failed : " , testDMIN(classesDMIN, filteredTest, test_y_after, sizeTest), "%")
+
+#displayAllImages(filteredTrain, train_y_after, 10, 10)
+#displayAllImages(train_x_greyscale, train_y_after, 10, 10)
 
 '''
 # tests avec différentes dimensions de l'ACP : 20 - 15 - 10
