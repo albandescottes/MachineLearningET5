@@ -3,12 +3,14 @@ from scipy.io import loadmat
 from scipy.spatial import distance 
 from random import randint
 from sklearn.decomposition import PCA
+from sklearn.svm import SVC 
+from sklearn.neighbors import KNeighborsClassifier
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 
 #import cv2 as cv
-from skimage.filters import threshold_mean, threshold_otsu, threshold_local, try_all_threshold, threshold_minimum, threshold_niblack
+from skimage.filters import threshold_mean
 from skimage import data, filters
 
 #cette méthode charge la matrice du fichier .mat
@@ -136,6 +138,25 @@ def ACP_transformation(data,number, pca_values=10):
 	pca = PCA(n_components=pca_values)
 	return pca.fit_transform(dataFlatten)
 
+
+#SVM svc 
+def flattenData(data):
+	dataFlatten = []
+	for i in range(0, data.shape[0]):
+		dataFlatten.append(data[i].flatten())
+	return dataFlatten
+
+def svm_classifieur(dataX, dataY):
+	svc = SVC(kernel = 'linear')
+	return svc.fit(dataX, dataY) 
+  
+def svm_result(svm, dataX, dataY):
+	svm_predictions = svm.predict(dataX)
+	accuracy = svm.score(dataX, dataY)
+	return (accuracy, svm_predictions)
+
+#def svm_confusion_matrix(svm, dataY):
+#	return confusion_matrix(dataY, svm)
 '''
 1. Nettoyer les données
 idées: Normalising the intensity, global and local contrast normalisation, ZCA whitening
@@ -172,8 +193,67 @@ del train_values_X, train_values_y, test_values_y, test_values_X
 
 #tests préprocessing d'Elodie
 #sans pre procc
-classesDMIN = classifieurDMIN(train_x_after, train_y_after, sizeTrain)
-print("DMIN with ", sizeTest , " values, w/o preprocessing, percentage failed : " , testDMIN(classesDMIN, test_x_after, test_y_after, sizeTest), "%")
+#classesDMIN = classifieurDMIN(train_x_after, train_y_after, sizeTrain)
+#print("DMIN with ", sizeTest , " values, w/o preprocessing, percentage failed : " , testDMIN(classesDMIN, test_x_after, test_y_after, sizeTest), "%")
+
+# websites
+# https://www.geeksforgeeks.org/multiclass-classification-using-scikit-learn/
+# https://towardsdatascience.com/building-a-k-nearest-neighbors-k-nn-model-with-scikit-learn-51209555453a?fbclid=IwAR1-Qj9WihMYmdxM5zRsKY-pR0ffplMNrUXG_MY4unn9-bc_1TuESEi6tY8
+print('flatten...')
+
+train_x_greyscale = rgb2gray(train_x_after).astype(np.float32)
+test_x_greyscale = rgb2gray(test_x_after).astype(np.float32)
+
+filteredTrain = applyFilter(train_x_greyscale, 73257)
+filteredTest = applyFilter(test_x_greyscale, 26032)
+train_x_flatten = flattenData(filteredTrain)
+test_x_flatten = flattenData(filteredTest)
+
+train_x_svm = train_x_flatten[0:30000]
+train_y_svm = np.ravel(train_y_after[0:30000])
+test_x_svm = test_x_flatten[0:20000]
+test_y_svm = np.ravel(test_y_after[0:20000])
+
+print('...finished')
+print("--- %s seconds ---" % (time.time() - start_time))
+print('pca...')
+pca = PCA(n_components=20)
+train_x_neig = pca.fit_transform(train_x_svm)
+test_x_neig = pca.fit_transform(test_x_svm)
+print('...finished')
+print("--- %s seconds ---" % (time.time() - start_time))
+print('knn...')
+# Create KNN classifier
+knn = KNeighborsClassifier(n_neighbors = 3)
+print('...finished')
+print("--- %s seconds ---" % (time.time() - start_time))
+# Fit the classifier to the data
+print('fit...')
+knn.fit(train_x_neig,train_y_svm)
+print('...finished')
+print("--- %s seconds ---" % (time.time() - start_time))
+print('score...')
+print(knn.predict(test_x_neig)[0:5])
+#print(knn.score(test_x_neig, test_y_svm))
+print('...finished')
+
+#svm = svm_classifieur(train_x_svm, train_y_svm)
+#accuracy, svm_predictions = svm_result(svm, test_x_svm, test_y_svm)
+
+#confusion_matrix = svm_confusion_matrix(test_y_svm, svm_predictions)
+#print('SVM : svc / linear, accuracy = ', accuracy)
+
+
+#partie des preprocessing
+'''
+#only filter
+filteredTrain = applyFilter(train_x_after, 73257)
+filteredTest = applyFilter(test_x_after, 26032)
+
+#avec pre procc
+classesDMIN = classifieurDMIN(filteredTrain, train_y_after, sizeTrain)
+print("DMIN with ", sizeTest , " values, w/ preprocessing #1, percentage failed : " , testDMIN(classesDMIN, filteredTest, test_y_after, sizeTest), "%")
+
 
 #pre procc
 train_x_greyscale = rgb2gray(train_x_after).astype(np.float32)
@@ -184,7 +264,8 @@ filteredTest = applyFilter(test_x_greyscale, 26032)
 
 #avec pre procc
 classesDMIN = classifieurDMIN(filteredTrain, train_y_after, sizeTrain)
-print("DMIN with ", sizeTest , " values, w/ preprocessing, percentage failed : " , testDMIN(classesDMIN, filteredTest, test_y_after, sizeTest), "%")
+print("DMIN with ", sizeTest , " values, w/ preprocessing #2, percentage failed : " , testDMIN(classesDMIN, filteredTest, test_y_after, sizeTest), "%")
+'''
 
 #displayAllImages(filteredTrain, train_y_after, 10, 10)
 #displayAllImages(train_x_greyscale, train_y_after, 10, 10)
