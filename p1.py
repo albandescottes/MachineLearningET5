@@ -9,7 +9,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 
-#import cv2 as cv
 from skimage.filters import threshold_mean
 from skimage import data, filters
 
@@ -38,31 +37,18 @@ def displayAllImages(img, labels, nrows, ncols):
         ax.set_title(labels[i])
     plt.show()    
 
-#cette méthode récupère un tableau des valeurs moyennes
-def meanArray(img, nrows, ncols):
-	meanArray = []
-	for i in range (0, nrows):
-		for j in range (0, ncols):
-			mean = meanValue(img[:, j:, :, i], nrows, ncols)
-			meanArray.append(mean)
-	return meanArray
-
-#cette méthode récupère la valeur moyenne des pixels d'une image
-def meanValue(img, nrows, ncols):
-	return threshold_mean(img[nrows][ncols])
-
 #cette méthode transforme une matrice rgb en noir et blanc
 def rgb2gray(images):
     return np.expand_dims(np.dot(images, [0.2990, 0.5870, 0.1140]), axis=3)
 
-#NEW 
+#OLD
 #Preprocessing
 #cette méthode applique un filtre de preprocessing à une matrice
 def applyFilter(img, size):
 	imgFiltered = [] 
 	for i in range (0, size):
 		mean = threshold_mean(img[i])
-		mid = img[i][16][16]
+		#mid = img[i][16][16]
 
 		hyst = filters.apply_hysteresis_threshold(img[i]-5, mean, mean+5)
 
@@ -70,6 +56,7 @@ def applyFilter(img, size):
 		imgFiltered.append(hyst)
 	return np.array(imgFiltered)
 
+#OLD
 #cette méthode modifie la forme des données 
 #pour être utilisées plus facilement dans le reste du programme
 def simplifyValues(dataX, dataY):
@@ -80,54 +67,7 @@ def simplifyValues(dataX, dataY):
 		newDataY.append(dataY[i])
 	return (np.array(newDataX), np.array(newDataY))
 
-
-# DMIN
-#NEW
-#cette méthode renvoit le classifieur d'un jeu de données avec résultat
-#avec un nombre de données passé en paramètre
-def classifieurDMIN(dataX, dataY, number):
-	classes = []
-	finalClasses = []
-	for i in range(0,10):
-		classes.append([])
-	for i in range(0 ,number):
-		ind = dataY[i][0]
-		if(ind == 10):
-			classes[0].append(dataX[i])
-		else:
-			classes[ind].append(dataX[i])
-	for i in range(0,10):
-		finalClasses.append(np.mean(classes[i], axis=0))
-	return finalClasses
-
-
-# NEW
-#cette méthode calcule pour chaque élément la classe qui a la distance euclidienne minimum
-#elle retourne le pourcentage d'echec de l'échantillon avec le classifieur
-def testDMIN(classes, dataX, dataY, number):
-	if(np.array_equal(dataX[0].shape, classes[0].shape)):
-		succes = 0
-		fail = 0
-		for i in range(0, number):
-			bestValue = np.linalg.norm(classes[0]-dataX[i])
-			bestMatch = 0
-			for c in range(1, 10):
-				temp = np.linalg.norm(classes[c]-dataX[i])
-				if(temp < bestValue):
-					bestValue = temp
-					bestMatch = c
-			y = dataY[i]
-			if(y==10):
-				y = 0
-			if(bestMatch == y):
-				succes += 1
-			else:
-				fail += 1
-		return (fail / (succes+fail) * 100.)  
-	else:
-		print(dataX[0].shape, " != ", classes[0].shape)
-		return 0;
-
+#OLD
 #PCA
 #cette méthode transforme les données en appelant la méthode PCA
 #de la biblitthèque sklearn
@@ -138,7 +78,7 @@ def ACP_transformation(data,number, pca_values=10):
 	pca = PCA(n_components=pca_values)
 	return pca.fit_transform(dataFlatten)
 
-
+#OLD
 #SVM svc 
 def flattenData(data):
 	dataFlatten = []
@@ -146,17 +86,123 @@ def flattenData(data):
 		dataFlatten.append(data[i].flatten())
 	return dataFlatten
 
-def svm_classifieur(dataX, dataY):
-	svc = SVC(kernel = 'linear')
-	return svc.fit(dataX, dataY) 
-  
-def svm_result(svm, dataX, dataY):
-	svm_predictions = svm.predict(dataX)
-	accuracy = svm.score(dataX, dataY)
-	return (accuracy, svm_predictions)
+#NEW
+#méthodes pour le classifieur DMIN
+def DMIN_classifier(dataX, dataY):
+	classes = []
+	finalClasses = []
+	for i in range(0,10):
+		classes.append([])
+	for i in range(0 ,dataY.shape[0]):
+		classes[dataY[i]].append(dataX[i])
+	for i in range(0,10):
+		finalClasses.append(np.mean(classes[i], axis=0))
+	return finalClasses
 
-#def svm_confusion_matrix(svm, dataY):
-#	return confusion_matrix(dataY, svm)
+#NEW
+def DMIN_predict(dataX, dmin):
+	predicitons = []
+	for i in range(0, len(dataX)):
+		bestValue = np.linalg.norm(dmin[0]-dataX[i])
+		bestMatch = 0
+		for c in range(1, 10):
+			temp = np.linalg.norm(dmin[c]-dataX[i])
+			if(temp < bestValue):
+				bestValue = temp
+				bestMatch = c
+		predicitons.append(bestMatch)
+	return np.array(predicitons)
+
+#NEW
+#flatten and cut in x and y
+def load_data_flatten(path, preprocessing=0):
+	data = loadmat(path)
+	data_x = []
+	data_y = []
+	for i in range(0, data['X'].shape[3]):
+		if preprocessing == 0:
+			data_x.append(data['X'][:,:,:,i].flatten())
+		else:
+			data_x.append(preprocessing_image(data['X'][:,:,:,i]).flatten())
+		data_y.append(data['y'][i])
+	data_y[data_y == 10] = 0
+	data_y = np.array(data_y)
+	data_y[data_y == 10] = 0
+	return np.array(data_x), data_y
+
+#NEW
+def preprocessing_image(img):
+	mean = threshold_mean(img)
+	return filters.apply_hysteresis_threshold(img -5, mean, mean + 5)
+
+#NEW
+#acp
+def acp_transformation(data, pca_values=10):
+	pca = PCA(n_components=pca_values)
+	return pca.fit_transform(data)
+
+#NEW
+#méthode DMIN
+def dmin_system(trainX, trainY, testX, testY):
+	start_time = time.time()
+	print('----DMIN-------------')
+	dmin = DMIN_classifier(trainX, trainY)
+	dmin_predicitons = DMIN_predict(testX, dmin)
+	accuracy, confusion_matrix = results_system(dmin_predicitons, testY)
+	print('dmin accuracy = ', accuracy)
+	print_confusion_matrix(confusion_matrix)
+	print("execution time for DMIN %s seconds ---" % (time.time() - start_time))
+	print('---------------------')
+
+#NEW
+#méthode SVM, utilisation de SVC
+def svm_system(trainX, trainY, testX, testY):
+	start_time = time.time()
+	print('----SVM--------------')
+	svc = SVC(kernel = 'linear')
+	svc.fit(trainX, trainY)
+	svc_predicitons = svc.predict(testX)
+	accuracy, confusion_matrix = results_system(svc_predicitons, testY)
+	print('svc accuracy = ', accuracy)
+	print_confusion_matrix(confusion_matrix)
+	print("execution time for svm %s seconds ---" % (time.time() - start_time))
+	print('---------------------')
+
+#NEW
+#méthode Neighbors, utilisation de KNeighborsClassifier
+def knn_system(trainX, trainY, testX, testY, k=10):
+	start_time = time.time()
+	print('----KNN--------------')
+	knn = KNeighborsClassifier(n_neighbors = k)
+	knn.fit(trainX,trainY)
+	knn_prediction = knn.predict(testX)
+	accuracy, confusion_matrix = results_system(knn_prediction, testY)
+	print('knn accuracy = ', accuracy)
+	print_confusion_matrix(confusion_matrix)
+	print("execution time for knn %s seconds ---" % (time.time() - start_time))
+	print('---------------------')
+
+#NEW
+#méthode qui calcule la précision du système ainsi que la matrice de confusion
+def results_system(predictions, values):
+	confusion_matrix = np.zeros((10,10))
+	for i in range(0, predictions.shape[0]):
+		confusion_matrix[values[i], predictions[i]] += 1
+	#print(confusion_matrix)
+	accuracy = np.trace(confusion_matrix) * 100 / predictions.shape[0]
+	return accuracy, confusion_matrix
+
+#NEW
+#méthode qui affiche la matrice de confusion sur le terminal
+def print_confusion_matrix(matrix):
+	print('\t| 0\t| 1\t| 2\t| 3\t| 4\t| 5\t| 6\t| 7\t| 8\t| 9')
+	for i in range(0,10):
+		print('-------------------------------------------------------------------------------------')
+		print('{}\t| {}\t| {}\t| {}\t| {}\t| {}\t| {}\t| {}\t| {}\t| {}\t| {}'.format(i, matrix[i,0].astype(np.int32), \
+			matrix[i,1].astype(np.int32), matrix[i,2].astype(np.int32), matrix[i,3].astype(np.int32), matrix[i,4].astype(np.int32),\
+			 matrix[i,5].astype(np.int32), matrix[i,6].astype(np.int32), matrix[i,7].astype(np.int32), matrix[i,8].astype(np.int32), \
+			 matrix[i,9].astype(np.int32)))
+		
 '''
 1. Nettoyer les données
 idées: Normalising the intensity, global and local contrast normalisation, ZCA whitening
@@ -176,16 +222,18 @@ idées: Normalising the intensity, global and local contrast normalisation, ZCA 
 #-----------Reading the .MAT files
 #NEW MAIN
 start_time = time.time()
+'''
 train_values_X, train_values_y = load_data('train_32x32.mat')
 test_values_X, test_values_y = load_data('test_32x32.mat')
 
 train_x_after, train_y_after = simplifyValues(train_values_X, train_values_y)
+train_y_after[train_y_after == 10] = 0
 sizeTrain = train_x_after.shape[0] - 1
 test_x_after, test_y_after = simplifyValues(test_values_X, test_values_y)
 sizeTest = test_x_after.shape[0] - 1
+test_y_after[test_y_after == 10] = 0
 del train_values_X, train_values_y, test_values_y, test_values_X
-
-
+'''
 #test DMIN avec toutes les valeurs des données train et test
 #classesDMIN = classifieurDMIN(train_x_after, train_y_after, sizeTrain)
 #print("DMIN with ", sizeTest , " values, percentage failed : " , testDMIN(classesDMIN, test_x_after, test_y_after, sizeTest), "%")
@@ -199,27 +247,58 @@ del train_values_X, train_values_y, test_values_y, test_values_X
 # websites
 # https://www.geeksforgeeks.org/multiclass-classification-using-scikit-learn/
 # https://towardsdatascience.com/building-a-k-nearest-neighbors-k-nn-model-with-scikit-learn-51209555453a?fbclid=IwAR1-Qj9WihMYmdxM5zRsKY-pR0ffplMNrUXG_MY4unn9-bc_1TuESEi6tY8
-print('flatten...')
+#print('flatten...')
 
-train_x_greyscale = rgb2gray(train_x_after).astype(np.float32)
-test_x_greyscale = rgb2gray(test_x_after).astype(np.float32)
+#train_x_greyscale = rgb2gray(train_x_after).astype(np.float32)
+#test_x_greyscale = rgb2gray(test_x_after).astype(np.float32)
 
-filteredTrain = applyFilter(train_x_greyscale, 73257)
-filteredTest = applyFilter(test_x_greyscale, 26032)
-train_x_flatten = flattenData(filteredTrain)
-test_x_flatten = flattenData(filteredTest)
+#filteredTrain = applyFilter(train_x_greyscale, 73257)
+#filteredTest = applyFilter(test_x_greyscale, 26032)
+#train_x_flatten = flattenData(filteredTrain)
+#test_x_flatten = flattenData(filteredTest)
+'''
+train_x_flatten = flattenData(train_x_after)
+test_x_flatten = flattenData(test_x_after)
 
-train_x_svm = train_x_flatten[0:30000]
-train_y_svm = np.ravel(train_y_after[0:30000])
-test_x_svm = test_x_flatten[0:20000]
-test_y_svm = np.ravel(test_y_after[0:20000])
+trainX = train_x_flatten[0:1000]
+trainY = np.ravel(train_y_after[0:1000])
+testX = test_x_flatten[0:1000]
+testY = np.ravel(test_y_after[0:1000])
+'''
 
+
+#NEW
+print('new load')
+data_x, data_y = load_data_flatten('train_32x32.mat',1)
+test_x, test_y = load_data_flatten('test_32x32.mat',1)
+#print(data_x.shape)
+#print(data_y.shape)
+trainX = data_x[0:2000]
+trainY = data_y[0:2000]
+testX = test_x[0:2000]
+testY = test_y[0:2000]
+print('load finished')
+
+#knn_system(trainX, trainY, testX, testY)
+#svm_system(trainX, trainY, testX, testY)
+dmin_system(trainX, trainY, testX, testY)
+
+print('with acp')
+
+trainX = acp_transformation(trainX)
+testX = acp_transformation(testX)
+#knn_system(trainX, trainY, testX, testY)
+#svm_system(trainX, trainY, testX, testY)
+dmin_system(trainX, trainY, testX, testY)
+
+
+'''
 print('...finished')
 print("--- %s seconds ---" % (time.time() - start_time))
 print('pca...')
-pca = PCA(n_components=20)
-train_x_neig = pca.fit_transform(train_x_svm)
-test_x_neig = pca.fit_transform(test_x_svm)
+#pca = PCA(n_components=20)
+#train_x_neig = pca.fit_transform(train_x_svm)
+#test_x_neig = pca.fit_transform(test_x_svm)
 print('...finished')
 print("--- %s seconds ---" % (time.time() - start_time))
 print('knn...')
@@ -229,14 +308,14 @@ print('...finished')
 print("--- %s seconds ---" % (time.time() - start_time))
 # Fit the classifier to the data
 print('fit...')
-knn.fit(train_x_neig,train_y_svm)
+knn.fit(train_x_svm,train_y_svm)
 print('...finished')
 print("--- %s seconds ---" % (time.time() - start_time))
 print('score...')
-print(knn.predict(test_x_neig)[0:5])
-#print(knn.score(test_x_neig, test_y_svm))
+#print(knn.predict(test_x_neig)[0:5])
+#print(knn.score(test_x_svm, test_y_svm))
 print('...finished')
-
+'''
 #svm = svm_classifieur(train_x_svm, train_y_svm)
 #accuracy, svm_predictions = svm_result(svm, test_x_svm, test_y_svm)
 
