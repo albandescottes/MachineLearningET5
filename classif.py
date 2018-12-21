@@ -1,3 +1,4 @@
+# Alban Descottes & Elodie Lam
 import sys
 import os.path
 from scipy.io import loadmat
