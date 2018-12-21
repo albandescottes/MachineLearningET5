@@ -35,6 +35,7 @@ class DMIN:
 		self.predictions = []
 		self.finalClasses = []
 
+	#méthode pour créer le classifieur dmin
 	def fit(self, dataX, dataY):
 		del self.finalClasses[:]
 		classes = []
@@ -45,6 +46,7 @@ class DMIN:
 		for i in range(0,10):
 			self.finalClasses.append(np.mean(classes[i], axis=0))
 
+	#méhtode qui retourne les prédicitons sous forme d'une array
 	def predict(self, dataX):
 		del self.predictions[:]
 		for i in range(0, len(dataX)):
@@ -59,7 +61,7 @@ class DMIN:
 		return np.array(self.predictions)
 
 #NEW
-#flatten and cut in x and y
+#méthode qui récupère les données et les transforme en données pour les différents classifieurs
 def load_data_flatten(path, preprocessing=0):
 	start_time = time.time()
 	print('----LOAD-OF-{}---'.format(path))
@@ -84,19 +86,19 @@ def load_data_flatten(path, preprocessing=0):
 	print('---------------------')
 	return np.array(data_x), data_y
 
-#NEW
+#méthode pour l'application du preprocessing sur une image
 def preprocessing_image(img):
 	mean = threshold_mean(img)
 	return filters.apply_hysteresis_threshold(img -5, mean, mean + 5)
 
 #NEW
-#acp
+#transformaiton des données avec l'acp, de base on transforme en 10 valeurs
 def acp_transformation(data, pca_values=10):
 	pca = PCA(n_components=pca_values)
 	return pca.fit_transform(data)
 
 #NEW
-#méthode DMIN
+#méthode pour le classifieur DMIN
 def dmin_system(trainX, trainY, testX, testY):
 	start_time = time.time()
 	print('----DMIN-------------')
@@ -119,10 +121,10 @@ def dmin_system(trainX, trainY, testX, testY):
 
 #NEW
 #méthode SVM, utilisation de SVC
-def svm_system(trainX, trainY, testX, testY, ker='linear', deg='3'):
+def svm_system(trainX, trainY, testX, testY, ker='poly'):
 	start_time = time.time()
 	print('----SVM--------------')
-	svc = SVC(kernel = ker, degree=deg)
+	svc = SVC(kernel = ker)
 	svc.fit(trainX, trainY)
 	print('----TRAIN------------')
 	svc_predictions = svc.predict(trainX)
@@ -182,61 +184,122 @@ def print_confusion_matrix(matrix):
 			 matrix[i,5].astype(np.int32), matrix[i,6].astype(np.int32), matrix[i,7].astype(np.int32), matrix[i,8].astype(np.int32), \
 			 matrix[i,9].astype(np.int32)))
 		
-'''
-1. Nettoyer les données
-idées: Normalising the intensity, global and local contrast normalisation, ZCA whitening
-
-2. Classifieur à distance minimum (only numpy & matplotlib)
-	- Déterminer pour chaque chiffre: vecteur de caractéristiques
-	- Calculer le centre des vecteurs de chaque classe (0 à 9)
-	- Sauvegarder dans un fichier d'apprentissage
-	- Ecrire le programme de décision:
-		- Déterminer pour chaque chiffre: vecteur des distances 
-		- Classer en comparant au centre de chaque classe
 
 
-3. Réduction de la dimension des vecteurs (ACP)
-'''
+def rgb2gray(images):
+    #return np.expand_dims(np.dot(images, [0.2990, 0.5870, 0.1140]), axis=3)
+    return np.expand_dims(np.dot(images, [1, 1, 1]), axis=3)
 
+def load_data(path):
+	data = loadmat(path)
+	return data['X'], data['y']
+
+def displayAllImages(img, labels, nrows, ncols):
+	fig, axes = plt.subplots(nrows, ncols)
+	for i, ax in enumerate(axes.flat): 
+	    if img[i].shape == (32, 32, 3):
+	        ax.imshow(img[i])
+	    else:
+	        ax.imshow(img[i,:,:,0])
+	    ax.set_xticks([]); ax.set_yticks([])
+	    ax.set_title(labels[i])
+	plt.show()  
+
+def applyFilter(img, size):
+	imgFiltered = [] 
+	for i in range (0, size):
+		mean = threshold_mean(img[i])
+		#mid = img[i][16][16]
+
+		hyst = filters.apply_hysteresis_threshold(img[i]-5, mean, mean+5)
+
+		#hyst = filters.apply_hysteresis_threshold(img[i], mid-5, mid+5)
+		imgFiltered.append(hyst)
+	return np.array(imgFiltered)
 
 #NEW MAIN
 start_time = time.time()
 
-# websites
-# https://www.geeksforgeeks.org/multiclass-classification-using-scikit-learn/
-# https://towardsdatascience.com/building-a-k-nearest-neighbors-k-nn-model-with-scikit-learn-51209555453a?fbclid=IwAR1-Qj9WihMYmdxM5zRsKY-pR0ffplMNrUXG_MY4unn9-bc_1TuESEi6tY8
-
 #NEW
-data_x, data_y = load_data_flatten('train_32x32.mat')
-test_x, test_y = load_data_flatten('test_32x32.mat')
-trainAcc =[]
-testAcc = []
+time_normal = time.time()
+#data_x, data_y = load_data_flatten('train_32x32.mat')
+#test_x, test_y = load_data_flatten('test_32x32.mat')
+time_normal = (time.time() - time_normal)
+
+#data = load_data('test_32x32.mat')
+
+X_test, y_test = load_data('test_32x32.mat')
+X_test, y_test = X_test.transpose((3,0,1,2)), y_test[:,0]
+data_grey = rgb2gray(X_test).astype(np.float32)
+#filteredTest = applyFilter(data_grey, 26032)
+displayAllImages(filteredTest, y_test, 1, 10)
+
+#data_x = []
+#data_y = []
+#for i in range(0, data['X'].shape[3]):
+#	if preprocessing == 0:
+#		data_x.append(data['X'][:,:,:,i].flatten())
+#	elif preprocessing == 1:
+#		data_x.append(preprocessing_image(data['X'][:,:,:,i]).flatten())
+#	elif preprocessing == 2:
+#		data_x.append(np.expand_dims(np.dot(data['X'][:,:,:,i], [0.2990, 0.5870, 0.1140]), axis=3))
+#	elif preprocessing == 3:
+#		data_x.append(preprocessing_image(np.expand_dims(np.dot(data['X'][:,:,:,i], [0.2990, 0.5870, 0.1140]), axis=3)).flatten())
+
+
+#trainAcc =[]
+#testAcc = []
+#execTime = []
+
+#svm_system(data_x[0:2500], data_y[0:2500], test_x[0:2500], test_y[0:2500])
+
 
 '''
-x = ['2k/26k', '5k/26k', '10k/26k', '20k/26k', '40k/26k', '60k/26k', '73k/26k']
-#print(data_x.shape)
-#print(data_y.shape)
-trainX1 = data_x[0:2000]
-trainY1 = data_y[0:2000]
+#x = ['2k/26k', '5k/26k', '10k/26k', '20k/26k', '40k/26k', '40k/26k', '73k/26k']
+trainX1 = data_x[0:30000]
+trainY1 = data_y[0:30000]
 testX1 = test_x[0:26000]
 testY1 = test_y[0:26000]
 train, test, tps = dmin_system(trainX1, trainY1, testX1, testY1)
 trainAcc.append(train)
 testAcc.append(test)
-trainX2 = data_x[0:5000]
-trainY2 = data_y[0:5000]
-testX2 = test_x[0:26000]
+execTime.append(tps + time_normal)
+ttime = time.time()
+trainX2 = acp_transformation(data_x[0:30000])
+trainY2 = data_y[0:30000]
+testX2 = acp_transformation(test_x[0:26000])
 testY2 = test_y[0:26000]
 train, test, tps = dmin_system(trainX2, trainY2, testX2, testY2)
+ttime = (time.time() - ttime)
 trainAcc.append(train)
 testAcc.append(test)
-trainX3 = data_x[0:10000]
-trainY3 = data_y[0:10000]
+execTime.append(tps + ttime + time_normal)
+
+time_pre = time.time()
+data_x, data_y = load_data_flatten('train_32x32.mat',3)
+test_x, test_y = load_data_flatten('test_32x32.mat',3)
+time_pre = (time.time() - time_pre)
+
+ttime = time.time()
+trainX3 = acp_transformation(data_x[0:30000])
+trainY3 = data_y[0:30000]
+testX3 = acp_transformation(test_x[0:26000])
+testY3 = test_y[0:26000]
+train, test, tps = dmin_system(trainX3, trainY3, testX3, testY3)
+ttime = (time.time() - ttime)
+trainAcc.append(train)
+testAcc.append(test)
+execTime.append(tps + ttime + time_pre)
+
+trainX3 = data_x[0:30000]
+trainY3 = data_y[0:30000]
 testX3 = test_x[0:26000]
 testY3 = test_y[0:26000]
 train, test, tps = dmin_system(trainX3, trainY3, testX3, testY3)
 trainAcc.append(train)
 testAcc.append(test)
+execTime.append(tps + time_pre)
+
 trainX4 = data_x[0:20000]
 trainY4 = data_y[0:20000]
 testX4 = test_x[0:26000]
@@ -265,8 +328,34 @@ testY7 = test_y[0:26000]
 train, test, tps = dmin_system(trainX7, trainY7, testX7, testY7)
 trainAcc.append(train)
 testAcc.append(test)
+'''
+'''
+t = ['DMIN', 'ACP+DMIN', 'PRE+ACP+DMIN', 'PRE+DMIN']
+fig, ax1 = plt.subplots()
 
-plt.xlabel('nombre train / nombre test')
+color = 'tab:red'
+ax1.set_xlabel('Configuration')
+ax1.set_ylabel('précision', color=color)
+line_train, = ax1.plot(t, trainAcc, 'ro', label='Train')
+line_test, = ax1.plot(t, testAcc, 'rX', label='Test')
+ax1.tick_params(axis='y', labelcolor=color)
+
+ax2 = ax1.twinx() 
+color = 'tab:green'
+ax2.set_ylabel('temps d\'execution', color=color)
+line_exec, = ax2.plot(t, execTime, 'go', label='Time')
+ax2.tick_params(axis='y', labelcolor=color)
+
+fig.tight_layout()
+plt.title('Classifieur DMIN')
+plt.legend(handles=[line_train, line_test, line_exec])
+plt.show()
+print(t)
+print(trainAcc)
+print(testAcc)
+print(execTime)
+
+plt.xlabel('Nombre de données')
 plt.ylabel('précision')
 plt.title('DMIN')
 plt.ylim(0.05,0.2)
@@ -276,84 +365,234 @@ plt.legend(handles=[line_train, line_test])
 plt.show()
 '''
 
+'''
+data_x = data_x[0:10000]
+data_y = data_y[0:10000]
+test_x = test_x[0:10000]
+test_y = test_y[0:10000]
 
+print('1')
+trainX1 = acp_transformation(data_x,100)
+trainY1 = data_y
+testX1 = acp_transformation(test_x, 100)
+testY1 = test_y
+
+print('2')
+trainX2 = acp_transformation(data_x,150)
+trainY2 = data_y
+testX2 = acp_transformation(test_x,150)
+testY2 = test_y
+print('3')
+trainX3 = acp_transformation(data_x,200)
+trainY3 = data_y
+testX3 = acp_transformation(test_x,200)
+testY3 = test_y
+print('4')
+trainX4 = acp_transformation(data_x,250)
+trainY4 = data_y
+testX4 = acp_transformation(test_x,250)
+testY4 = test_y
+print('5')
+trainX5 = acp_transformation(data_x,300)
+trainY5 = data_y
+testX5 = acp_transformation(test_x,300)
+testY5 = test_y
+print('6')
+trainX6 = acp_transformation(data_x,500)
+trainY6 = data_y
+testX6 = acp_transformation(test_x,500)
+testY6 = test_y
+'''
+
+'''
 #SVM
-x = ['2', '3', '4', '5']
-trainX1 = data_x[0:500]
-trainY1 = data_y[0:500]
-testX1 = test_x[0:1000]
-testY1 = test_y[0:1000]
-train, test, tps = svm_system(trainX1, trainY1, testX1, testY1, 'poly', 2)
+x = ['SVM', 'ACP+SVM', 'PRE+ACP+SVM', 'PRE+SVM']
+trainX1 = data_x[0:3000]
+trainY1 = data_y[0:3000]
+testX1 = test_x[0:3000]
+testY1 = test_y[0:3000]
+#trainX1 = trainX1[0:500]
+#trainY1 = trainY1[0:500]
+#testX1 = testX1[0:1000]
+#testY1 = testY1[0:1000]
+
+train, test, tps = knn_system(trainX1, trainY1, testX1, testY1, 10)
 trainAcc.append(train)
 testAcc.append(test)
-trainX2 = data_x[0:500]
-trainY2 = data_y[0:500]
-testX2 = test_x[0:1000]
-testY2 = test_y[0:1000]
-train, test, tps = svm_system(trainX2, trainY2, testX2, testY2, 'poly', 3)
+execTime.append(tps + time_normal)
+
+ttime = time.time()
+trainX2 = acp_transformation(data_x[0:3000], 20)
+trainY2 = data_y[0:3000]
+testX2 = acp_transformation(test_x[0:3000], 20)
+testY2 = test_y[0:3000]
+ttime = (time.time() - ttime)
+#trainX2 = trainX2[0:500]
+#trainY2 = trainY2[0:500]
+#testX2 = testX2[0:1000]
+#testY2 = testY2[0:1000]
+train, test, tps = knn_system(trainX2, trainY2, testX2, testY2, 10)
 trainAcc.append(train)
 testAcc.append(test)
-trainX3 = data_x[0:500]
-trainY3 = data_y[0:500]
-testX3 = test_x[0:1000]
-testY3 = test_y[0:1000]
-train, test, tps = svm_system(trainX3, trainY3, testX3, testY3, 'poly', 4)
+execTime.append(tps + time_normal + ttime)
+
+time_pre = time.time()
+data_x, data_y = load_data_flatten('train_32x32.mat',3)
+test_x, test_y = load_data_flatten('test_32x32.mat',3)
+time_pre = (time.time() - time_pre)
+
+ttime = time.time()
+trainX3 = acp_transformation(data_x[0:3000], 20)
+trainY3 = data_y[0:3000]
+testX3 = acp_transformation(test_x[0:2000], 20)
+testY3 = test_y[0:3000]
+ttime = (time.time() - ttime)
+#trainX3 = trainX3[0:500]
+#trainY3 = trainY3[0:500]
+#testX3 = testX3[0:1000]
+#testY3 = testY3[0:1000]
+train, test, tps = knn_system(trainX3, trainY3, testX3, testY3, 10)
+trainAcc.append(train)
+testAcc.append(test)
+execTime.append(tps + time_pre + ttime)
+
+
+trainX4 = data_x[0:3000]
+trainY4 = data_y[0:3000]
+testX4 = test_x[0:3000]
+testY4 = test_y[0:3000]
+#trainX4 = trainX4[0:500]
+#trainY4 = trainY4[0:500]
+#testX4 = testX4[0:1000]
+#testY4 = testY4[0:1000]
+train, test, tps = knn_system(trainX4, trainY4, testX4, testY4, 10)
+trainAcc.append(train)
+testAcc.append(test)
+execTime.append(tps + time_pre)
+
+t = ['KNN', 'ACP+KNN', 'PRE+ACP+KNN', 'PRE+KNN']
+fig, ax1 = plt.subplots()
+
+color = 'tab:red'
+ax1.set_xlabel('Configuration')
+ax1.set_ylabel('précision', color=color)
+line_train, = ax1.plot(t, trainAcc, 'ro', label='Train')
+line_test, = ax1.plot(t, testAcc, 'rX', label='Test')
+ax1.tick_params(axis='y', labelcolor=color)
+
+ax2 = ax1.twinx() 
+color = 'tab:green'
+ax2.set_ylabel('temps d\'execution', color=color)
+line_exec, = ax2.plot(t, execTime, 'go', label='Time')
+ax2.tick_params(axis='y', labelcolor=color)
+
+fig.tight_layout()
+plt.title('Classifieur KNN')
+plt.legend(handles=[line_train, line_test, line_exec])
+plt.show()
+print(t)
+print(trainAcc)
+print(testAcc)
+print(execTime)
+'''
+'''
+#trainX5 = data_x[0:500]
+#trainY5 = data_y[0:500]
+#testX5 = test_x[0:1000]
+#testY5 = test_y[0:1000]
+trainX5 = trainX5[0:500]
+trainY5 = trainY5[0:500]
+testX5 = testX5[0:1000]
+testY5 = testY5[0:1000]
+train, test, tps = svm_system(trainX5, trainY5, testX5, testY5, 'poly')
+trainAcc.append(train)
+testAcc.append(test)
+#trainX6 = data_x[0:500]
+#trainY6 = data_y[0:500]
+#testX6 = test_x[0:1000]
+#testY6 = test_y[0:1000]
+trainX6 = trainX6[0:500]
+trainY6 = trainY6[0:500]
+testX6 = testX6[0:1000]
+testY6 = testY6[0:1000]
+train, test, tps = svm_system(trainX6, trainY6, testX6, testY6, 'poly')
 trainAcc.append(train)
 testAcc.append(test)
 
-trainX4 = data_x[0:500]
-trainY4 = data_y[0:500]
-testX4 = test_x[0:1000]
-testY4 = test_y[0:1000]
-train, test, tps = svm_system(trainX4, trainY4, testX4, testY4, 'poly', 5)
-trainAcc.append(train)
-testAcc.append(test)
-'''
-trainX5 = data_x[0:1000]
-trainY5 = data_y[0:1000]
-testX5 = test_x[0:1000]
-testY5 = test_y[0:1000]
-train, test, tps = svm_system(trainX5, trainY5, testX5, testY5)
-trainAcc.append(train)
-testAcc.append(test)
-trainX6 = data_x[0:1500]
-trainY6 = data_y[0:1500]
-testX6 = test_x[0:1000]
-testY6 = test_y[0:1000]
-train, test, tps = svm_system(trainX6, trainY6, testX6, testY6)
-trainAcc.append(train)
-testAcc.append(test)
-'''
-plt.xlabel('kernel=\'poly\' degree')
+plt.xlabel('kernel')
 plt.ylabel('précision')
-plt.title('SVM')
+plt.title('Preprocessing + SVM 500 train / 1000 test')
 plt.ylim(0.05,1)
 line_train, =plt.plot(x, trainAcc, 'ro', label="Train")
 line_test, = plt.plot(x, testAcc, 'go', label="Test")
 plt.legend(handles=[line_train, line_test])
 plt.show()
-
-
 '''
-x = ['k=3', 'k=4', 'k=5', 'k=6', 'k=7', 'k=8', 'k=9']
+'''
+print('1')
+trainX1 = acp_transformation(data_x,10)
+trainY1 = data_y
+testX1 = acp_transformation(test_x, 10)
+testY1 = test_y
+
+print('2')
+trainX2 = acp_transformation(data_x,20)
+trainY2 = data_y
+testX2 = acp_transformation(test_x,20)
+testY2 = test_y
+print('3')
+trainX3 = acp_transformation(data_x,30)
+trainY3 = data_y
+testX3 = acp_transformation(test_x,30)
+testY3 = test_y
+print('4')
+trainX4 = acp_transformation(data_x,40)
+trainY4 = data_y
+testX4 = acp_transformation(test_x,40)
+testY4 = test_y
+print('5')
+trainX5 = acp_transformation(data_x,50)
+trainY5 = data_y
+testX5 = acp_transformation(test_x,50)
+testY5 = test_y
+print('6')
+trainX6 = acp_transformation(data_x,60)
+trainY6 = data_y
+testX6 = acp_transformation(test_x,60)
+testY6 = test_y
+'''
+'''
+x = ['k=1', 'k=3', 'k=5', 'k=7', 'k=9', 'k=11', 'k=13']
 trainX1 = data_x[0:3000]
 trainY1 = data_y[0:3000]
 testX1 = test_x[0:3000]
 testY1 = test_y[0:3000]
-train, test, tps = knn_system(trainX1, trainY1, testX1, testY1, 3)
+#trainX1 = trainX1[0:3000]
+#trainY1 = trainY1[0:3000]
+#testX1 = testX1[0:3000]
+#testY1 = testY1[0:3000]
+train, test, tps = knn_system(trainX1, trainY1, testX1, testY1, 1)
 trainAcc.append(train)
 testAcc.append(test)
 trainX2 = data_x[0:3000]
 trainY2 = data_y[0:3000]
 testX2 = test_x[0:3000]
 testY2 = test_y[0:3000]
-train, test, tps = knn_system(trainX2, trainY2, testX2, testY2, 4)
+#trainX2 = trainX2[0:3000]
+#trainY2 = trainY2[0:3000]
+#testX2 = testX2[0:3000]
+#testY2 = testY2[0:3000]
+train, test, tps = knn_system(trainX2, trainY2, testX2, testY2, 3)
 trainAcc.append(train)
 testAcc.append(test)
 trainX3 = data_x[0:3000]
 trainY3 = data_y[0:3000]
 testX3 = test_x[0:3000]
 testY3 = test_y[0:3000]
+#trainX3 = trainX3[0:3000]
+#trainY3 = trainY3[0:3000]
+#testX3 = testX3[0:3000]
+#testY3 = testY3[0:3000]
 train, test, tps = knn_system(trainX3, trainY3, testX3, testY3, 5)
 trainAcc.append(train)
 testAcc.append(test)
@@ -361,35 +600,48 @@ trainX4 = data_x[0:3000]
 trainY4 = data_y[0:3000]
 testX4 = test_x[0:3000]
 testY4 = test_y[0:3000]
-train, test, tps = knn_system(trainX4, trainY4, testX4, testY4, 6)
+#trainX4 = trainX4[0:3000]
+#trainY4 = trainY4[0:3000]
+#testX4 = testX4[0:3000]
+#testY4 = testY4[0:3000]
+train, test, tps = knn_system(trainX4, trainY4, testX4, testY4, 7)
 trainAcc.append(train)
 testAcc.append(test)
 trainX5 = data_x[0:3000]
 trainY5 = data_y[0:3000]
 testX5 = test_x[0:3000]
 testY5 = test_y[0:3000]
-train, test, tps = knn_system(trainX5, trainY5, testX5, testY5, 7)
+#trainX5 = trainX5[0:3000]
+#trainY5 = trainY5[0:3000]
+#testX5 = testX5[0:3000]
+#testY5 = testY5[0:3000]
+train, test, tps = knn_system(trainX5, trainY5, testX5, testY5, 9)
 trainAcc.append(train)
 testAcc.append(test)
 trainX6 = data_x[0:3000]
 trainY6 = data_y[0:3000]
 testX6 = test_x[0:3000]
 testY6 = test_y[0:3000]
-train, test, tps = knn_system(trainX6, trainY6, testX6, testY6, 8)
+#trainX6 = trainX6[0:3000]
+#trainY6 = trainY6[0:3000]
+#testX6 = testX6[0:3000]
+#testY6 = testY6[0:3000]
+train, test, tps = knn_system(trainX6, trainY6, testX6, testY6, 11)
 trainAcc.append(train)
 testAcc.append(test)
+
 trainX7 = data_x[0:3000]
 trainY7 = data_y[0:3000]
 testX7 = test_x[0:3000]
 testY7 = test_y[0:3000]
-train, test, tps = knn_system(trainX7, trainY7, testX7, testY7, 9)
+train, test, tps = knn_system(trainX7, trainY7, testX7, testY7, 13)
 trainAcc.append(train)
 testAcc.append(test)
 
 plt.xlabel('k')
 plt.ylabel('précision')
-plt.title('KNN')
-plt.ylim(0.2,0.6)
+plt.title('preprocessing + KNN 3000 train / 3000 test')
+plt.ylim(0.3,0.7)
 line_train, =plt.plot(x, trainAcc, 'ro', label="Train")
 line_test, = plt.plot(x, testAcc, 'go', label="Test")
 plt.legend(handles=[line_train, line_test])
